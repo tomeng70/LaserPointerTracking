@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-cap = cv2.VideoCapture(0)
+
 
 CIRCLE_DIA = 20
 CIRCLE_RAD = 2
@@ -16,6 +16,7 @@ MIN_VAL = 200
 MAX_VAL = 256
 
 # global variables
+cap = cv2.VideoCapture(0)
 prevState = 0
 pts = []
 min_hue = MIN_HUE
@@ -52,6 +53,7 @@ def findCenter(frame):
 def main():
     global prevState
     global pts
+    global cap
     while (1):
         # Take each frame
         ret, frame = cap.read()
