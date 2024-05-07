@@ -8,40 +8,28 @@ CIRCLE_COLOR = (0, 0, 255)      # rgb
 BAR_HEIGHT = 28
 CIRCLE_OFFSET = BAR_HEIGHT // 2 - 4
 
+MIN_HUE = 20
+MAX_HUE = 160
+MIN_SAT = 100
+MAX_SAT = 255
+MIN_VAL = 200
+MAX_VAL = 256
+
+# global variables
 prevState = 0
 pts = []
-while (1):
+min_hue = MIN_HUE
+max_hue = MAX_HUE
+min_sat = MIN_SAT
+max_sat = MAX_SAT
+min_val = MIN_VAL
+max_val = MAX_VAL
 
-    # Take each frame
-    ret, frame = cap.read()
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    # split into hue, sat, and val components.
-    h, s, v = cv2.split(hsv)
-
-    # process hue
-    (t, tmp) = cv2.threshold(h, 160, 0, cv2.THRESH_TOZERO_INV)
-    (t, h) = cv2.threshold(tmp, 20, 255, cv2.THRESH_BINARY)
-    h = cv2.bitwise_not(h)
-
-    # process sat
-    (t, tmp) = cv2.threshold(s, 255, 0, cv2.THRESH_TOZERO_INV)
-    (t, s) = cv2.threshold(tmp, 100, 255, cv2.THRESH_BINARY)
-
-    # process val
-    (t, tmp) = cv2.threshold(v, 256, 0, cv2.THRESH_TOZERO_INV)
-    (t, v) = cv2.threshold(tmp, 200, 255, cv2.THRESH_BINARY)
-
-    # recombine values again.
-    laser = cv2.bitwise_and(h, v)
-    laser = cv2.bitwise_and(s, laser)
-
-    merged = cv2.merge([h, s, v])
-
-    # find contours to locate laser.
+def findCenter(frame):
     center = None
-
-    countours = cv2.findContours(laser, cv2.RETR_EXTERNAL,
+    radius = None
+    countours = cv2.findContours(frame, cv2.RETR_EXTERNAL,
                                      cv2.CHAIN_APPROX_SIMPLE)[-2]
 
     # only proceed if at least one contour was found
@@ -58,47 +46,70 @@ while (1):
         else:
                 center = int(x), int(y)
 
-        # only proceed if the radius meets a minimum size
-        if radius > 10:
-            # draw the circle and centroid on the frame,
-            cv2.circle(frame, (int(x), int(y)), int(radius),
-                        (0, 255, 255), 2)
-            cv2.circle(frame, center, 5, (0, 0, 255), -1)
+    # return center
+    return center
 
-    #cv2.imshow('Track Laser', laser)
-    cv2.imshow('Track Laser', frame)
+def main():
+    global prevState
+    global pts
+    while (1):
+        # Take each frame
+        ret, frame = cap.read()
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    #lower_red = np.array([170, 50, 50])
-    # lower_red = np.array([160, 50, 50])
-    # upper_red = np.array([180, 255, 255])
-    # mask = cv2.inRange(hsv, lower_red, upper_red)
-    # (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(mask)
+        # split into hue, sat, and val components.
+        h, s, v = cv2.split(hsv)
 
-    # if (minVal > 0 or maxVal > 0):
-    #     print(f"minVal = {minVal:06.2f}, maxVal = {maxVal:06.2f}, " 
-    #         + f"minLoc = {minLoc}, maxLoc = {maxLoc}")
-    #     cp = np.add(maxLoc, (0, CIRCLE_OFFSET))
-    #     # only add the first point detected in a burst.
-    #     if (prevState == 0):
-    #         pts.append(cp)
-    #         prevState = 1
-    #     ##cv2.circle(frame, cp, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
-    # else:
-    #     if (prevState == 1):
-    #         prevState = 0
-    # # loop through pts.
-    # for pt in pts:
-    #     cv2.circle(frame, pt, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
-    
-    # cv2.imshow('Track Laser', frame)
-    #cv2.imshow('Track Laser', hsv)
+        # process hue
+        (t, tmp) = cv2.threshold(h, max_hue, 0, cv2.THRESH_TOZERO_INV)
+        (t, h) = cv2.threshold(tmp, min_hue, 255, cv2.THRESH_BINARY)
+        h = cv2.bitwise_not(h)
 
-    # check for key presses from user.
-    pressedKey = cv2.waitKey(1) & 0xFF
-    if pressedKey == ord('q'):
-        break;
-    elif pressedKey == ord('c'):
-        pts.clear()
+        # process sat
+        (t, tmp) = cv2.threshold(s, max_sat, 0, cv2.THRESH_TOZERO_INV)
+        (t, s) = cv2.threshold(tmp, min_sat, 255, cv2.THRESH_BINARY)
 
-cap.release()
-cv2.destroyAllWindows()
+        # process val
+        (t, tmp) = cv2.threshold(v, max_val, 0, cv2.THRESH_TOZERO_INV)
+        (t, v) = cv2.threshold(tmp, min_val, 255, cv2.THRESH_BINARY)
+
+        # recombine values again.
+        laser = cv2.bitwise_and(h, v)
+        laser = cv2.bitwise_and(s, laser)
+
+        merged = cv2.merge([h, s, v])
+
+        # find contours to locate laser.
+        center = findCenter(laser)
+
+        # determine if we need to add another pulse to our list of points.
+        if (center != None):
+            cp = np.add(center, (0, CIRCLE_OFFSET))
+            # only add the first point detected in a burst.
+            if (prevState == 0):
+                pts.append(cp)
+                prevState = 1
+            cv2.circle(frame, cp, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
+        else:
+            if (prevState == 1):
+                prevState = 0
+
+        # loop through pts.
+        for pt in pts:
+            cv2.circle(frame, pt, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
+        
+        cv2.imshow('Track Laser', frame)
+        #cv2.imshow('Track Laser', hsv)
+
+        # check for key presses from user.
+        pressedKey = cv2.waitKey(1) & 0xFF
+        if pressedKey == ord('q'):
+            break;
+        elif pressedKey == ord('c'):
+            pts.clear()
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+# run the main function.
+main()
