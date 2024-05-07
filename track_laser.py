@@ -38,7 +38,35 @@ while (1):
 
     merged = cv2.merge([h, s, v])
 
-    cv2.imshow('Track Laser', laser)
+    # find contours to locate laser.
+    center = None
+
+    countours = cv2.findContours(laser, cv2.RETR_EXTERNAL,
+                                     cv2.CHAIN_APPROX_SIMPLE)[-2]
+
+    # only proceed if at least one contour was found
+    if len(countours) > 0:
+        # find the largest contour in the mask, then use
+        # it to compute the minimum enclosing circle and
+        # centroid
+        c = max(countours, key=cv2.contourArea)
+        ((x, y), radius) = cv2.minEnclosingCircle(c)
+        moments = cv2.moments(c)
+        if moments["m00"] > 0:
+            center = int(moments["m10"] / moments["m00"]), \
+                     int(moments["m01"] / moments["m00"])
+        else:
+                center = int(x), int(y)
+
+        # only proceed if the radius meets a minimum size
+        if radius > 10:
+            # draw the circle and centroid on the frame,
+            cv2.circle(frame, (int(x), int(y)), int(radius),
+                        (0, 255, 255), 2)
+            cv2.circle(frame, center, 5, (0, 0, 255), -1)
+
+    #cv2.imshow('Track Laser', laser)
+    cv2.imshow('Track Laser', frame)
 
     #lower_red = np.array([170, 50, 50])
     # lower_red = np.array([160, 50, 50])
