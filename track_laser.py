@@ -91,7 +91,7 @@ def main():
             if (prevState == 0):
                 pts.append(cp)
                 prevState = 1
-            cv2.circle(frame, cp, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
+            #cv2.circle(frame, cp, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
         else:
             if (prevState == 1):
                 prevState = 0
