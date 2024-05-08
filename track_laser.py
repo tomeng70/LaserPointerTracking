@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-
+import pygame
 
 CIRCLE_DIA = 20
 CIRCLE_RAD = 2
@@ -54,6 +54,11 @@ def main():
     global prevState
     global pts
     global cap
+
+    cap = cv2.VideoCapture(0)
+    
+    pygame.mixer.init()
+    hit_sound = pygame.mixer.Sound("media/hit.wav")
     while (1):
         # Take each frame
         ret, frame = cap.read()
@@ -91,6 +96,7 @@ def main():
             if (prevState == 0):
                 pts.append(cp)
                 prevState = 1
+                pygame.mixer.Sound.play(hit_sound)
             #cv2.circle(frame, cp, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
         else:
             if (prevState == 1):
