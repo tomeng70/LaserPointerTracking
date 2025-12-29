@@ -15,6 +15,13 @@ MAX_SAT = 255
 MIN_VAL = 200
 MAX_VAL = 256
 
+# NEW: live-adjustable offsets (pixels)
+X_OFFSET = 0      # right (+), left (-)
+Y_OFFSET = 0      # down (+), up (-)
+
+# NEW: how much arrow keys change the offset each press
+OFFSET_STEP = 1
+
 # global variables
 cap = cv2.VideoCapture(0)
 prevState = 0
@@ -45,23 +52,43 @@ def findCenter(frame):
             center = int(moments["m10"] / moments["m00"]), \
                      int(moments["m01"] / moments["m00"])
         else:
-                center = int(x), int(y)
+            center = int(x), int(y)
 
     # return center
     return center
+
+
+def draw_overlay(frame, x_off, y_off, step):
+    """
+    Draw offset info near the top of the screen.
+    """
+    text = f"X_OFFSET: {x_off:+d}   Y_OFFSET: {y_off:+d}   STEP: {step}"
+    # shadow for readability
+    cv2.putText(frame, text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 3, cv2.LINE_AA)
+    cv2.putText(frame, text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+
+    help_text = "Arrows=adjust  [/] step  r=reset  c=clear  q=quit"
+    cv2.putText(frame, help_text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 3, cv2.LINE_AA)
+    cv2.putText(frame, help_text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+
 
 def main():
     global prevState
     global pts
     global cap
+    global X_OFFSET, Y_OFFSET, OFFSET_STEP
 
     cap = cv2.VideoCapture(0)
-    
+
     pygame.mixer.init()
     hit_sound = pygame.mixer.Sound("media/hit.wav")
+
     while (1):
         # Take each frame
         ret, frame = cap.read()
+        if not ret:
+            break
+
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
         # split into hue, sat, and val components.
@@ -90,14 +117,18 @@ def main():
         center = findCenter(laser)
 
         # determine if we need to add another pulse to our list of points.
-        if (center != None):
-            cp = np.add(center, (0, CIRCLE_OFFSET))
+        if (center is not None):
+            # NEW: apply live offsets + your existing CIRCLE_OFFSET
+            cp = (
+                center[0] + X_OFFSET,
+                center[1] + CIRCLE_OFFSET + Y_OFFSET
+            )
+
             # only add the first point detected in a burst.
             if (prevState == 0):
                 pts.append(cp)
                 prevState = 1
                 pygame.mixer.Sound.play(hit_sound)
-            #cv2.circle(frame, cp, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
         else:
             if (prevState == 1):
                 prevState = 0
@@ -105,19 +136,48 @@ def main():
         # loop through pts.
         for pt in pts:
             cv2.circle(frame, pt, CIRCLE_DIA, CIRCLE_COLOR, CIRCLE_RAD, cv2.LINE_AA)
-        
-        cv2.imshow('Track Laser', frame)
-        #cv2.imshow('Track Laser', hsv)
 
-        # check for key presses from user.
-        pressedKey = cv2.waitKey(1) & 0xFF
-        if pressedKey == ord('q'):
-            break;
-        elif pressedKey == ord('c'):
+        # NEW: overlay offset values on-screen
+        draw_overlay(frame, X_OFFSET, Y_OFFSET, OFFSET_STEP)
+
+        cv2.imshow('Track Laser', frame)
+
+        # NEW: use waitKeyEx to reliably read arrow keys on Windows
+        key = cv2.waitKeyEx(1)
+
+        # Quit
+        if key == ord('q'):
+            break
+
+        # Clear points
+        elif key == ord('c'):
             pts.clear()
+
+        # Reset offsets
+        elif key == ord('r'):
+            X_OFFSET = 0
+            Y_OFFSET = 0
+
+        # Step size adjust
+        elif key == ord('['):
+            OFFSET_STEP = max(1, OFFSET_STEP // 2)
+        elif key == ord(']'):
+            OFFSET_STEP = min(100, OFFSET_STEP * 2)
+
+        # Arrow keys (common OpenCV codes)
+        # Left=2424832, Up=2490368, Right=2555904, Down=2621440 (waitKeyEx on Windows)
+        elif key == 2424832:   # Left
+            X_OFFSET -= OFFSET_STEP
+        elif key == 2555904:   # Right
+            X_OFFSET += OFFSET_STEP
+        elif key == 2490368:   # Up
+            Y_OFFSET -= OFFSET_STEP
+        elif key == 2621440:   # Down
+            Y_OFFSET += OFFSET_STEP
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 # run the main function.
 main()
